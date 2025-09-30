@@ -17,29 +17,50 @@ app = typer.Typer(
 )
 
 
-@app.command("encrypt", help="Detect PII and encrypt only those spans.")
+@app.command(
+    "encrypt",
+    help="Detect PII and encrypt only those spans; optionally also emit a redacted copy.",
+)
 def cmd_encrypt(
     input_path: Optional[str] = typer.Argument("-", help="File path or '-' for stdin."),
     output_path: Optional[str] = typer.Option(
-        "-", "--output", "-o", help="Output file or '-' for stdout."
+        "-", "--output", "-o", help="Encrypted text out (file or '-' for stdout)."
     ),
     key: Optional[str] = typer.Option(None, "--key", help="AES key (16/24/32 chars)."),
     lang: str = typer.Option("en", "--lang", help="Language code, e.g., en/es."),
     recognizer_yaml_config: Optional[List[str]] = typer.Option(
         None,
         "--recognizer-yaml-config",
-        help="Path(s) to custom recognizer YAML config (overrides built-in).",
+        help="Path(s) to YAML recognizer files.",
     ),
     entities: Optional[List[str]] = typer.Option(
-        None,
-        "--entities",
-        "-e",
-        help="Limit to selected entities (e.g., -e EMAIL_ADDRESS PHONE_NUMBER)",
+        None, "--entities", "-e", help="Limit to selected entity types."
     ),
     entities_out: Optional[str] = typer.Option(
         None,
         "--entities-out",
-        help="Where to write entities JSON (default: <output>.entities.json if --output is a file). ",
+        help="Where to write entities JSON (default: <output>.entities.json if output is a file).",
+    ),
+    also_redacted: bool = typer.Option(
+        False,
+        "--also-redacted",
+        help="Also write a redacted version using <ENTITY_TYPE> placeholders.",
+    ),
+    redacted_out: Optional[str] = typer.Option(
+        None,
+        "--redacted-out",
+        help="Path for redacted text (default: <output>.redacted.txt if output is a file).",
+    ),
+    redacted_mode: str = typer.Option(
+        "replace",
+        "--redacted-mode",
+        help="replace -> '<ENTITY_TYPE>' (default), redact -> remove value",
+        case_sensitive=False,
+    ),
+    redacted_value: Optional[str] = typer.Option(
+        None,
+        "--redacted-value",
+        help="Optional explicit replacement (e.g., '<PII>') when --redacted-mode=replace.",
     ),
 ):
     text = read_text(input_path)
@@ -52,23 +73,55 @@ def cmd_encrypt(
             else None,
         )
     )
-    enc_text, enc_entities = analyzer.encrypt_text(text, key=resolve_key(key))
 
-    # write encrypted text
-    write_text(output_path, enc_text)
+    if also_redacted:
+        # NOTE: If the user wants redacted output as well, do both in one pass
+        enc_text, enc_entities, red_text = analyzer.encrypt_and_redact(
+            text,
+            key=resolve_key(key),
+            redact_mode=redacted_mode.lower(),
+            replace_value=redacted_value,
+        )
+        # encrypted text
+        write_text(output_path, enc_text)
 
-    # write entities as JSON (NOT str(...))
-    if output_path == "-":
-        if not entities_out:
+        # entities
+        sidecar = entities_out or (
+            f"{output_path}.entities.json" if output_path != "-" else None
+        )
+        if sidecar is None:
+            raise typer.BadParameter("Cannot determine entities output path.")
+        if output_path == "-" and not sidecar:
             raise typer.BadParameter("--entities-out is required when --output is '-'")
-        write_json(entities_out, enc_entities)
+        write_json(sidecar, enc_entities)
+
+        # redacted text
+        red_target = redacted_out or (
+            f"{output_path}.redacted.txt" if output_path != "-" else None
+        )
+        if output_path == "-" and not red_target:
+            raise typer.BadParameter(
+                "--redacted-out is required when --output is '-' and --also-redacted is set"
+            )
+        write_text(red_target, red_text)
         typer.echo(
-            f"Encrypted {len(enc_entities)} PII spans. Entities -> {entities_out}"
+            f"Encrypted {len(enc_entities)} spans. Wrote entities -> {sidecar}; redacted -> {red_target}"
         )
     else:
-        sidecar = entities_out or f"{output_path}.entities.json"
+        # NOTE: Only encrypt, no redacted output
+        enc_text, enc_entities = analyzer.encrypt_text(text, key=resolve_key(key))
+        write_text(output_path, enc_text)
+        sidecar = entities_out or (
+            f"{output_path}.entities.json" if output_path != "-" else None
+        )
+
+        if output_path == "-" and not sidecar:
+            raise typer.BadParameter("--entities-out is required when --output is '-'")
+        if not sidecar:
+            raise typer.BadParameter("Cannot determine entities output path.")
+
         write_json(sidecar, enc_entities)
-        typer.echo(f"Encrypted {len(enc_entities)} PII spans. Entities -> {sidecar}")
+        typer.echo(f"Encrypted {len(enc_entities)} spans. Entities -> {sidecar}")
 
 
 @app.command(
