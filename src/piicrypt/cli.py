@@ -69,14 +69,16 @@ def cmd_encrypt(
     ),
     key: Optional[str] = typer.Option(None, "--key", help="AES key (16/24/32 chars)."),
     lang: str = typer.Option("en", "--lang", help="Language code, e.g., en/es."),
+    recognizer_yaml_config: Optional[List[str]] = typer.Option(
+        None,
+        "--recognizer-yaml-config",
+        help="Path(s) to custom recognizer YAML config (overrides built-in).",
+    ),
     entities: Optional[List[str]] = typer.Option(
         None,
         "--entities",
         "-e",
         help="Limit to selected entities (e.g., -e EMAIL_ADDRESS PHONE_NUMBER)",
-    ),
-    custom: bool = typer.Option(
-        False, "--custom", help="Enable demo custom recognizer."
     ),
     entities_out: Optional[str] = typer.Option(
         None,
@@ -86,7 +88,13 @@ def cmd_encrypt(
 ):
     text = _read_text(input_path)
     analyzer = PIIAnalyzer(
-        PIIAnalyzerConfig(language=lang, entities=entities, use_custom=custom)
+        PIIAnalyzerConfig(
+            language=lang,
+            entities=entities,
+            recognizer_yaml_paths=list(recognizer_yaml_config)
+            if recognizer_yaml_config
+            else None,
+        )
     )
     enc_text, enc_entities = analyzer.encrypt_text(text, key=_resolve_key(key))
 

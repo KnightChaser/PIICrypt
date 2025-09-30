@@ -1,34 +1,32 @@
 # src/piicrypt/nlp.py
 
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List
 from presidio_analyzer import (
     AnalyzerEngine,
     RecognizerRegistry,
-    Pattern,
-    PatternRecognizer,
 )
+from pathlib import Path
 
 
 def build_analyzer(
     *,
-    use_custom: bool = False,
+    yaml_paths: Optional[List[str]] = None,
 ) -> AnalyzerEngine:
     """
-    Build an AnalyzerEngine. You can evolve this to a full NlpEngineProvider
-    with multiple spaCy models (EN/ES/etc.).
+    Build an AnalyzerEngine.
+
+    If yaml_paths is provided, load the recognizers from the first YAML file.
+    If not, use the default recognizers.
     """
-    registry: Optional[RecognizerRegistry] = None
+    registry = RecognizerRegistry()
+    registry.load_predefined_recognizers()  # Load the built-ins
 
-    if use_custom:
-        # NOTE: Example custom recognizer (GitHub token)
-        ghp = Pattern(name="ghp_token", regex=r"ghp_[A-Za-z0-9]{36}", score=0.6)
-        ghp_rec = PatternRecognizer(
-            supported_entity="GITHUB_TOKEN",
-            patterns=[ghp],
-            context=["token", "github", "key"],
-        )
-        registry = RecognizerRegistry()
-        registry.add_recognizer(ghp_rec)
+    if yaml_paths:
+        for yaml_path in yaml_paths:
+            path = Path(yaml_path)
+            if not path.is_file():
+                raise FileNotFoundError(f"YAML file not found: {yaml_path}")
+            registry.add_recognizers_from_yaml(str(path))
 
-    return AnalyzerEngine(registry=registry) if registry else AnalyzerEngine()
+    return AnalyzerEngine(registry=registry)

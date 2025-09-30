@@ -1,0 +1,10 @@
+# recognizers_sample.yml
+recognizers:
+  - name: GitHub PAT (classic)
+    supported_entity: GITHUB_TOKEN_CLASSIC
+    supported_language: en
+    patterns:
+      - name: ghp_token
+        regex: "\\bghp_[A-Za-z0-9]{36}\\b"
+        score: 0.6
+    context: [token, github, key]

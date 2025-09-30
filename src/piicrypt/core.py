@@ -16,14 +16,14 @@ _VALID_AES_KEY_LENS = {16, 24, 32}  # in bytes: AES-128, AES-192, AES-256
 class PIIAnalyzerConfig:
     language: str = "en"
     entities: Optional[List[str]] = None  # e.g., ["EMAIL_ADDRESS", "PHONE_NUMBER"]
-    use_custom: bool = False
+    recognizer_yaml_paths: Optional[List[str]] = None  # paths to custom YAML files
 
 
 class PIIAnalyzer:
     def __init__(self, config: Optional[PIIAnalyzerConfig] = None) -> None:
         self.config = config or PIIAnalyzerConfig()
         self.analyzer: AnalyzerEngine = build_analyzer(
-            use_custom=self.config.use_custom
+            yaml_paths=self.config.recognizer_yaml_paths
         )
         self.anonymizer: AnonymizerEngine = AnonymizerEngine()
         self.deanonymizer: DeanonymizeEngine = DeanonymizeEngine()
