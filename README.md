@@ -7,7 +7,7 @@ Additionally, install the [`en_core_web_lg`](https://spacy.io/models/en#en_core_
 And then, hit the command `piicrypt --help` to start.
 ```sh
 uv sync
-uv pip add pip
+uv pip install pip
 uv run spacy download en_core_web_lg
 ```
 
@@ -150,3 +150,4 @@ Please provide the password you used during encryption and the generated entity 
 ```
 pii-crypt decrypt output.txt --key "1234567890ABCDEF" --output recovered.txt
 ```
+
